@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Arigato Sushi POS Receipt</title>
+  <style>
+    body { font-family: monospace; background:#f4f4f4; padding:20px; }
+    .container { max-width:450px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2); }
+    h2 { text-align:center; margin-top:0; }
+    label { display:block; margin-top:10px; }
+    select, input, button { width:100%; padding:8px; margin-top:5px; margin-bottom:10px; }
+    .items div { display:flex; justify-content:space-between; border-bottom:1px dotted #aaa; padding:4px 0; }
+    .totals { font-weight:bold; margin-top:12px; }
+    pre.receipt { background:#fff; border:1px solid #ccc; padding:10px; white-space:pre; }
+    button { cursor:pointer; }
+    .btn-reset { background:#d9534f; color:white; }
+    .btn-add { background:#0275d8; color:white; }
+    .btn-print { background:#5cb85c; color:white; }
+
+        
+      @media print {
+      @page {
+        margin: 5mm 3mm;   /* 5mm top/bottom, 3mm left/right */
+      }
+
+      body {
+        width: 80mm;       /* still match printer paper */
+        margin: 0;
+        padding: 0;
+        font-family: monospace;
+        font-size: 12px;
+        background: white;
+      }
+
+      .container, pre.receipt {
+        width: 74mm;       /* 80mm - 3mm side margins each */
+        margin: auto;
+        padding: 0;
+        border: none;
+        background: white;
+        font-size: 12px;
+        line-height: 1.3em;
+        white-space: pre;
+      }
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Arigato Sushi Ordering System</h2>
+    <!-- Dropdown -->
+     <!-- Item selection -->
+    <label>Select Item</label>
+    <select id="menuSelect" onchange="setPrice()">
+      <option value="">-- Choose an item --</option>
+    </select>
+
+    <label>Price (£)</label>
+    <input id="itemPrice" type="number" step="0.01" readonly> <!-- auto-filled -->
+
+    <label>Quantity</label>
+    <input id="itemQty" type="number" min="1" value="1">
+    
+
+    <button class="btn-add" onclick="addSelected()">➕ Add Item</button>
+    <button class="btn-reset" onclick="resetOrder()">♻️ Reset Order</button>
+
+    <div id="items"></div>
+
+    <!-- Discount -->
+    <label>Discount</label>
+    <select id="discount" onchange="update()">
+      <option value="none">None</option>
+      <option value="10">10% Off</option>
+      <option value="30">30% Off</option>                                                          
+    </select>
+
+    <!-- Tax -->
+    <label>Tax (%)</label>
+    <input id="tax" type="number" value="0" onchange="update()">
+
+    <!-- Order Type -->
+    <label>Order Type</label>
+    <select id="orderType" onchange="update()">
+      <option value="">-- Select --</option>
+      <option value="Collection">Collection</option>
+      <option value="Delivery">Delivery</option>
+      <option value="Dine-In">Dine-In</option>
+    </select>
+
+    <!-- customer Name (optional) -->
+    <label>Customer Name (optional)</label>
+    <input id="customerName" type="text" placeholder="e.g. John Smith" oninput="update()">
+
+    <!-- customer Contact -->
+    <label>Customer Contact</label>
+    <input id="customerContact" type="text" placeholder="e.g. 07123 456789" oninput="update()">
+
+    <!-- customer Address -->
+    <label>Customer Address</label>
+    <input id="customerAddress" type="text" placeholder="e.g. 123 Baker Street, London" oninput="update()">
+
+    
+    <div class="totals" id="totals"></div>
+
+    <button class="btn-print" onclick="printReceipt()">🖨️ Print Receipt</button>
+
+    <h3>Preview</h3>
+    <pre class="receipt" id="preview"></pre>
+  </div>
+   
+
+<script>
+  // --- Simple admin password ---
+  const encodedPass = "amFwYW4=";  
+  const userInput = prompt("Enter admin password:");
+  const decodedPass = atob(encodedPass); 
+  if (userInput !== decodedPass) {
+    document.body.innerHTML = "<h2 style='color:red;text-align:center;margin-top:50px;'>🚫 Access Denied</h2>";
+    throw new Error("Unauthorized access"); 
+  }
+</script>
+
+<script>
+  const menu = {
+      "Salmon Sashimi": 5.50,
+      "Tuna Sashimi": 6.50,
+      "Seared Salmon Sashimi": 7.50,
+      "Seared Tuna Sashimi": 8.75,
+      "Mix Sashimi": 12.95,
+
+      "Salmon Nigiri": 4.50,
+      "Tuna Nigiri": 4.50,
+      "Prawn Nigiri": 4.50,
+      "Avocado Nigiri": 3.85,
+
+      "Salmon Maki": 4.50,
+      "Tuna Maki": 4.50,
+      "Spicy Tuna Maki": 4.95,
+      "Omelette Maki": 3.50,
+      "Avocado Maki": 3.50,
+      "Cucumber Maki": 3.50,
+
+      "Crunchy Salmon Roll": 8.75,
+      "Crunchy Prawn Roll": 8.75,
+      "Crunchy Chicken Roll": 8.50,
+      "Crunchy Veg Roll": 7.50,
+
+      "Salmon Uramaki": 7.15,
+      "California Roll": 6.85,
+      "Spicy Tuna Roll": 7.70,
+      "Tuna Roll": 7.15,
+      "Prawn Roll": 7.95,
+      "Chicken Roll": 8.25,
+      "Veg Roll": 6.05,
+
+      "Salmon Temaki": 4.95,
+      "Tuna Temaki": 4.95,
+      "Spicy Tuna Temaki": 4.95,
+      "Prawn Temaki": 5.50,
+      "Crabstick Temaki": 6.50,
+
+      "Duck Gyoza": 6.50,
+      "Chicken Gyoza": 6.50,
+      "Prawn Gyoza": 7.15,
+      "Veg Gyoza": 5.95,
+
+      "Chicken Katsu": 10.50,
+      "Prawn Katsu": 10.95,
+      "Tofu Katsu": 9.50,
+      "Veg Katsu": 9.50,
+
+      "Kitchen Special": 13.15,
+      "Subway Special": 13.15,
+      "Prawn Panko": 12.15,
+      "Dragon Roll": 12.15,
+      "Volcano Maki": 12.95,
+      "London Roll": 11.95,
+      "Pink Lady Maki": 12.95,
+      "Duck Pepper Roll": 11.95,
+
+      "Salmon Box": 13.15,
+      "Salmon Lovers": 14.15,
+      "Nigiri Box": 12.15,
+      "Mix Maki Box": 13.15,
+      "Omega Box": 12.15,
+      "Vegan Box": 11.50,
+      "Deluxe Box": 15.50,
+      "Tuna Box": 16.50,
+      "Village Platter": 29.95,
+
+      "Jungle Fish Salad": 11.50,
+      "Salmon Poke": 10.95,
+      "Edamame": 3.50
+    };
+
+
+
+    // populpte dropdown dynamically
+  const select = document.getElementById("menuSelect");
+  Object.keys(menu).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+
+  // aauto-fill price when selecting
+  function setPrice() {
+    const item = select.value;
+    document.getElementById("itemPrice").value = item ? menu[item] : "";
+  }
+
+  let order = [];
+
+  function addSelected() {
+    const item = select.value;
+    const price = parseFloat(document.getElementById("itemPrice").value);
+    const qty = parseInt(document.getElementById("itemQty").value);
+    if (!item || isNaN(price) || isNaN(qty) || qty < 1) {
+      alert("Please select item, enter price, and quantity.");
+      return;
+    }
+    order.push({ item, price, qty });
+    document.getElementById("itemPrice").value = "";
+    document.getElementById("itemQty").value = 1;
+    update();
+  }
+
+  function resetOrder() {
+    order = [];
+    update();
+  }
+
+  function update() {
+    const itemsDiv = document.getElementById("items");
+    itemsDiv.innerHTML = "";
+    let subtotal = 0;
+    order.forEach(o => {
+      subtotal += o.price * o.qty;
+      const div = document.createElement("div");
+      div.textContent = `${o.qty}x ${o.item} - £${(o.price * o.qty).toFixed(2)}`;
+      itemsDiv.appendChild(div);
+    });
+
+    let discountVal = document.getElementById("discount").value;
+    let discountAmount = 0;
+    if (discountVal !== "none") {
+      discountAmount = subtotal * (parseFloat(discountVal) / 100);
+    }
+
+    let taxPercent = parseFloat(document.getElementById("tax").value) || 0;
+    let taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
+
+    let total = subtotal - discountAmount + taxAmount;
+
+    document.getElementById("totals").innerHTML =
+      `Subtotal: £${subtotal.toFixed(2)}<br>` +
+      `Discount: -£${discountAmount.toFixed(2)}<br>` +
+      `Tax: £${taxAmount.toFixed(2)}<br>` +
+      `Total: £${total.toFixed(2)}`;
+
+    // Date + Time
+    const now = new Date();
+    const dateStr = now.toLocaleDateString();
+    const timeStr = now.toLocaleTimeString();
+
+    // Order type + customer
+    const orderType = document.getElementById("orderType").value || "Not specified";
+    const customerName = document.getElementById("customerName").value || "";
+    const customerContact = document.getElementById("customerContact").value || "";
+    const customerAddress = document.getElementById("customerAddress").value || "";
+
+
+    // Receipt text
+    let receipt = "   ARIGATO SUSHI\n";
+    receipt +="47C Abbott Rd London\n";
+    receipt +="E14 0NA Tel:07424962370\n";
+
+    receipt += "                                       \n";
+    receipt += `${dateStr} ${timeStr}\n`;
+    receipt += "                                       \n";
+    receipt += `Order Type: ${orderType}\n`;
+    if (customerName) receipt += `Customer: ${customerName}\n`;
+    if (customerContact) receipt += `Contact: ${customerContact}\n`;
+    function wrapText(text, maxLen = 20) {
+      let result = '';
+      for (let i = 0; i < text.length; i += maxLen) {
+        result += text.substring(i, i + maxLen) + '\n';
+      }
+  return result;
+}
+
+  // then in update()
+  if (customerAddress) {
+    receipt += "Address:\n" + wrapText(customerAddress, 20);
+  }
+    
+    receipt += "----------------------\n";
+    order.forEach(o => {
+      receipt += `${o.qty}x ${o.item}\n  £${(o.price * o.qty).toFixed(2)}\n`;
+    });
+    receipt += "----------------------\n";
+    receipt += `Subtotal: £${subtotal.toFixed(2)}\n`;
+    receipt += `Discount: -£${discountAmount.toFixed(2)}\n`;
+    receipt += `Tax: £${taxAmount.toFixed(2)}\n`;
+    receipt += `TOTAL: £${total.toFixed(2)}\n`;
+    receipt += "----------------------\n";
+    receipt += "   Thank you!  🍣\n";
+
+    document.getElementById("preview").textContent = receipt;
+  }
+
+  function printReceipt() {
+    const receiptContent = "<pre style='margin:12;margin-top:12;padding:0'>" + 
+                            document.getElementById("preview").textContent + 
+                            "</pre>";
+
+    const win = window.open("", "PRINT", "height=600,width=400");
+    win.document.write(`
+      <html>
+      <head>
+        <style>
+          @page { margin: 0; }
+          body { margin: 12; padding: 0; font-family: monospace; font-size: 12px; }
+          pre { margin: 12; padding: 0; }
+        </style>
+      </head>
+      <body>${receiptContent}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  }
+</script>
+</body>
+</html>
