@@ -1,16 +1,18 @@
 # Arigato Sushi POS System 🍣
 
-A basic web-based sushi ordering and Point of Sale (POS) system.
+A web-based Point of Sale (POS) system developed for Arigato Sushi to help restaurant staff manage customer orders.
 
 ## Features
 
-- View sushi menu items
-- Add items to an order
-- Calculate the total price
-- Apply discounts and tax
+- View menu items
+- Create customer orders
+- Manage item quantities
+- Calculate order totals
+- Apply discounts
+- Calculate tax
 - Enter customer details
-- Generate a receipt
-- Print the receipt
+- Generate receipts
+- Print receipts
 
 ## Technologies
 
@@ -18,11 +20,13 @@ A basic web-based sushi ordering and Point of Sale (POS) system.
 - CSS
 - JavaScript
 
-## How to Run
+## Live Demo
 
-1. Clone the repository
-2. Open `index.html` in your browser
-3. Use the system to create an order
+https://sushiorderingsystem.netlify.app/
+
+## Purpose
+
+This POS system was developed for Arigato Sushi to provide restaurant staff with a simple interface for creating, managing and processing customer orders.
 
 ## Author
 
